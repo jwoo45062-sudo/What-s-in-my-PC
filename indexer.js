@@ -56,6 +56,25 @@ function cleanMarkdown(text) {
     .trim();
 }
 
+async function extractTextFromPDF(filePath) {
+  try {
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const buf = await fs.promises.readFile(filePath);
+    const data = new Uint8Array(buf);
+    const doc = await pdfjsLib.getDocument({ data }).promise;
+    let text = '';
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(x => x.str).join(' ') + '\n';
+    }
+    return text.trim();
+  } catch(err) {
+    log("WARN", `PDF 파싱 실패: ${path.basename(filePath)} - ${err.message}`);
+    return "";
+  }
+}
+
 async function extractText(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   try {
@@ -66,6 +85,10 @@ async function extractText(filePath) {
       const wb = XLSX.readFile(filePath);
       return wb.SheetNames.map(sn => XLSX.utils.sheet_to_csv(wb.Sheets[sn])).join("\n");
     }
+    if (ext === '.pdf') {
+      return await extractTextFromPDF(filePath);
+    }
+    // HWP, HWPX, DOCX → kordoc
     const { parse } = await import('kordoc');
     const buf = await fs.promises.readFile(filePath);
     const result = await parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
