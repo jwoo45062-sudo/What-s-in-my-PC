@@ -33,6 +33,7 @@
   "type": "commonjs",
   "dependencies": {
     "kordoc": "^2.1.0",
+    "pdfjs-dist": "^5.6.205",
     "sqlite3": "^6.0.1",
     "xlsx": "^0.18.5"
   },
