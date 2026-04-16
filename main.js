@@ -49,106 +49,91 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-// --- 검색 핸들러 (4단계 우선순위) ---
-ipcMain.handle("search-docs", async (event, { query, targetDirs }) => {
+// DB 쿼리를 Promise로 래핑
+function dbAll(query, params) {
   return new Promise((resolve) => {
-    try {
-      const sanitizedQuery = query
-        .replace(/[^\w\sㄱ-ㅎ가-힣]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      if (!sanitizedQuery) return resolve({ hits: [] });
-
-      console.log(`Searching: [${sanitizedQuery}], dirs: ${JSON.stringify(targetDirs)}`);
-
-      // JS에서 경로 prefix 필터링 (경로 구분자 차이 무관)
-      const normalizedDirs = (targetDirs || []).map(d => path.normalize(d).toLowerCase());
-      function matchesDir(filePath) {
-        if (normalizedDirs.length === 0) return true;
-        const norm = path.normalize(filePath).toLowerCase();
-        return normalizedDirs.some(d => {
-          const base = d.endsWith(path.sep) ? d : d + path.sep;
-          return norm.startsWith(base) || norm === d;
-        });
-      }
-
-      const seenIds = new Set();
-      const allHits = [];
-      function addHits(rows, snippetFallback) {
-        (rows || []).forEach(r => {
-          if (!seenIds.has(r.id) && matchesDir(r.path)) {
-            seenIds.add(r.id);
-            allHits.push({
-              id: r.id, path: r.path, root: r.root, mtime: r.mtime,
-              _formatted: { content: r.snippet || snippetFallback || "", path: r.path }
-            });
-          }
-        });
-      }
-
-      const ftsQ = `
-        SELECT d.id, d.path, d.root, d.mtime,
-          snippet(documents_fts, 2, '<em>', '</em>', '...', 20) as snippet
-        FROM documents_fts
-        JOIN documents d ON documents_fts.doc_id = d.id
-        WHERE documents_fts MATCH ?
-        ORDER BY rank
-        LIMIT 50
-      `;
-
-      const words = sanitizedQuery.split(/\s+/).filter(w => w.length > 0);
-      const fileName = path.basename; // 파일명만 추출용
-
-      // 1순위: 파일명 정확히 일치 (확장자 제외한 파일명에 검색어 전체 포함)
-      db.all(`SELECT id, path, root, mtime, '' as snippet FROM documents
-              WHERE replace(replace(replace(replace(replace(
-                lower(path), '.hwp',''), '.pdf',''), '.docx',''), '.xlsx',''), '.hwpx','')
-                LIKE lower(?) ESCAPE '!'
-              LIMIT 20`,
-        [`%${sanitizedQuery}%`], (err1, rows1) => {
-        if (err1) console.error("q1 error:", err1.message);
-        addHits(rows1, "");
-
-        // 2순위: 내용 정확한 구문 일치
-        db.all(ftsQ, [`"${sanitizedQuery}"`], (err2, rows2) => {
-          if (err2) console.error("q2 error:", err2.message);
-          addHits(rows2 || []);
-
-          // 3순위: 파일명 일부 일치 (단어별 prefix)
-          db.all(`SELECT id, path, root, mtime, '' as snippet FROM documents
-                  WHERE ${words.map(() => `lower(path) LIKE lower(?)`).join(" AND ")}
-                  LIMIT 20`,
-            words.map(w => `%${w}%`), (err3, rows3) => {
-            if (err3) console.error("q3 error:", err3.message);
-            addHits(rows3 || [], "");
-
-            // 4순위: 내용 일부 일치 (단어별 AND prefix)
-            db.all(ftsQ, [words.map(w => `${w}*`).join(" ")], (err4, rows4) => {
-              if (err4) console.error("q4 error:", err4.message);
-              addHits(rows4 || []);
-
-              // 5순위: 내용 하나라도 포함 (OR)
-              if (words.length > 1) {
-                db.all(ftsQ, [words.map(w => `${w}*`).join(" OR ")], (err5, rows5) => {
-                  if (err5) console.error("q5 error:", err5.message);
-                  addHits(rows5 || []);
-                  console.log(`검색 결과: ${allHits.length}건`);
-                  resolve({ hits: allHits });
-                });
-              } else {
-                console.log(`검색 결과: ${allHits.length}건`);
-                resolve({ hits: allHits });
-              }
-            });
-          });
-        });
-      });
-
-    } catch (err) {
-      console.error("Search error:", err);
-      resolve({ hits: [] });
-    }
+    db.all(query, params, (err, rows) => {
+      if (err) { console.error("query error:", err.message); resolve([]); }
+      else resolve(rows || []);
+    });
   });
+}
+
+// --- 검색 핸들러 (5단계 우선순위, 병렬 실행) ---
+ipcMain.handle("search-docs", async (event, { query, targetDirs }) => {
+  try {
+    const sanitizedQuery = query
+      .replace(/[^\w\sㄱ-ㅎ가-힣]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!sanitizedQuery) return { hits: [] };
+
+    const t = Date.now();
+    console.log(`Searching: [${sanitizedQuery}]`);
+
+    // 경로 필터
+    const normalizedDirs = (targetDirs || []).map(d => path.normalize(d).toLowerCase());
+    function matchesDir(filePath) {
+      if (normalizedDirs.length === 0) return true;
+      const norm = path.normalize(filePath).toLowerCase();
+      return normalizedDirs.some(d => {
+        const base = d.endsWith(path.sep) ? d : d + path.sep;
+        return norm.startsWith(base) || norm === d;
+      });
+    }
+
+    const words = sanitizedQuery.split(/\s+/).filter(w => w.length > 0);
+
+    const ftsQ = `
+      SELECT d.id, d.path, d.root, d.mtime,
+        snippet(documents_fts, 2, '<em>', '</em>', '...', 20) as snippet
+      FROM documents_fts
+      JOIN documents d ON documents_fts.doc_id = d.id
+      WHERE documents_fts MATCH ?
+      ORDER BY rank LIMIT 50
+    `;
+
+    // 5개 쿼리 병렬 실행
+    const [r1, r2, r3, r4, r5] = await Promise.all([
+      // 1순위: 파일명 전체 일치
+      dbAll(`SELECT id, path, root, mtime, '' as snippet FROM documents
+             WHERE replace(replace(replace(replace(replace(
+               lower(path),'.hwp',''),'.pdf',''),'.docx',''),'.xlsx',''),'.hwpx','')
+             LIKE lower(?) LIMIT 20`, [`%${sanitizedQuery}%`]),
+      // 2순위: 내용 정확한 구문 일치
+      dbAll(ftsQ, [`"${sanitizedQuery}"`]),
+      // 3순위: 파일명 단어별 일치
+      dbAll(`SELECT id, path, root, mtime, '' as snippet FROM documents
+             WHERE ${words.map(() => `lower(path) LIKE lower(?)`).join(" AND ")}
+             LIMIT 20`, words.map(w => `%${w}%`)),
+      // 4순위: 내용 단어별 AND prefix
+      dbAll(ftsQ, [words.map(w => `${w}*`).join(" ")]),
+      // 5순위: 내용 단어 OR prefix
+      words.length > 1 ? dbAll(ftsQ, [words.map(w => `${w}*`).join(" OR ")]) : Promise.resolve([])
+    ]);
+
+    // 우선순위 순서대로 중복 제거하며 합치기
+    const seenIds = new Set();
+    const allHits = [];
+    [[r1, ""], [r2, ""], [r3, ""], [r4, ""], [r5, ""]].forEach(([rows, fallback]) => {
+      (rows || []).forEach(r => {
+        if (!seenIds.has(r.id) && matchesDir(r.path)) {
+          seenIds.add(r.id);
+          allHits.push({
+            id: r.id, path: r.path, root: r.root, mtime: r.mtime,
+            _formatted: { content: r.snippet || fallback, path: r.path }
+          });
+        }
+      });
+    });
+
+    console.log(`검색 결과: ${allHits.length}건 (${Date.now() - t}ms)`);
+    return { hits: allHits };
+
+  } catch (err) {
+    console.error("Search error:", err);
+    return { hits: [] };
+  }
 });
 
 // --- 폴더 선택 ---
