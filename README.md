@@ -115,7 +115,7 @@ npm run build
 ## Special Thanks
 
 HWP, PDF, DOCX 파일 파싱은 [@chrisryugj](https://github.com/chrisryugj)님이 만드신 [kordoc](https://github.com/chrisryugj/kordoc) 라이브러리 덕분에 가능했습니다.
-광진구청에서 일하면서 이런 걸 만드시다니... 🙏 진심으로 감사드립니다.
+🙏 진심으로 감사드립니다.
 
 ---
 
