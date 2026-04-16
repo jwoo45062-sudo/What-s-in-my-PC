@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>What's in my PC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard+Variable:wght@100..900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --danger: #ef4444;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --sub: #64748b;
+      --accent: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Pretendard Variable', -apple-system, system-ui, sans-serif;
+      padding: 36px 40px;
+      background: var(--bg);
+      color: var(--text);
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    /* ── 헤더 ── */
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
+    .title h1 { font-size: 2.2rem; font-weight: 800; margin: 0; letter-spacing: -0.03em; }
+    .title p  { color: var(--sub); margin: 6px 0 0; font-size: 1rem; }
+
+    /* ── 온보딩 배너 ── */
+    #onboarding {
+      background: #eff6ff;
+      border: 1.5px solid #bfdbfe;
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      display: none;
+    }
+    #onboarding h3 { margin: 0 0 8px; font-size: 1rem; color: #1d4ed8; }
+    #onboarding ol { margin: 0; padding-left: 20px; color: #1e40af; font-size: 0.93rem; line-height: 1.8; }
+
+    /* ── 폴더 패널 ── */
+    .panel {
+      background: #f1f5f9;
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-bottom: 22px;
+    }
+    .panel-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+    }
+    .panel-header span { font-size: 0.9rem; font-weight: 700; color: #334155; }
+    .btn-add {
+      background: #e2e8f0; border: none; padding: 6px 14px; border-radius: 7px;
+      cursor: pointer; font-size: 0.83rem; font-weight: 600; color: #475569;
+    }
+    .btn-add:hover { background: #cbd5e1; }
+
+    #folderList { list-style: none; padding: 0; margin: 0 0 14px; display: flex; flex-direction: column; gap: 7px; }
+    #folderList li {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #fff; padding: 9px 14px; border-radius: 8px;
+      border: 1px solid #cbd5e1; font-size: 0.88rem;
+    }
+    #folderList li span { word-break: break-all; flex: 1; }
+    #folderList li button {
+      background: none; border: none; color: #ef4444; cursor: pointer;
+      font-weight: bold; font-size: 1.1rem; padding: 0 4px; flex-shrink: 0;
+    }
+
+    .sync-row { display: flex; gap: 8px; }
+    .btn-sync {
+      flex: 1; padding: 11px; background: var(--primary); color: #fff;
+      border: none; border-radius: 10px; cursor: pointer;
+      font-size: 0.92rem; font-weight: 600;
+      box-shadow: 0 2px 6px rgb(79 70 229 / 0.25);
+      transition: background 0.2s, transform 0.15s;
+    }
+    .btn-sync:hover { background: var(--primary-hover); transform: translateY(-1px); }
+    .btn-force {
+      padding: 11px 16px; background: var(--danger); color: #fff;
+      border: none; border-radius: 10px; cursor: pointer;
+      font-size: 0.88rem; font-weight: 600; white-space: nowrap;
+      transition: opacity 0.2s;
+    }
+    .btn-force:hover { opacity: 0.85; }
+
+    /* ── 검색창 ── */
+    .search-wrap {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--card); padding: 7px;
+      border-radius: 16px;
+      box-shadow: 0 1px 4px rgb(0 0 0 / 0.1);
+      margin-bottom: 14px;
+    }
+    #searchBox {
+      flex: 1; padding: 0 14px; font-size: 1.05rem; height: 48px;
+      border: none; outline: none; background: transparent; color: var(--text);
+    }
+    .btn-search {
+      flex-shrink: 0; width: 48px; height: 48px;
+      background: var(--primary); border: none; border-radius: 11px;
+      cursor: pointer; color: #fff; display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s;
+    }
+    .btn-search:hover { background: var(--primary-hover); }
+    .btn-search svg { width: 22px; height: 22px; }
+
+    /* ── 상태 텍스트 ── */
+    #statusTxt {
+      font-size: 0.88rem; color: var(--accent); font-weight: 500;
+      min-height: 20px; margin-bottom: 20px;
+    }
+
+    /* ── 결과 카드 ── */
+    .result-item {
+      background: var(--card); padding: 20px 22px; margin-bottom: 16px;
+      border-radius: 14px; border: 1px solid #f1f5f9;
+      animation: fadeUp 0.3s ease forwards;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .result-item:hover { box-shadow: 0 6px 18px rgb(0 0 0 / 0.08); border-color: #e2e8f0; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .result-item em { background: #fef08a; color: #854d0e; font-style: normal; font-weight: 700; border-radius: 2px; padding: 0 2px; }
+    .path-row {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #f8fafc; padding: 7px 12px; border-radius: 7px;
+      margin-bottom: 10px; font-size: 0.82rem; color: var(--sub);
+    }
+    .path-row span { word-break: break-all; flex: 1; }
+    .btn-open {
+      background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+      padding: 3px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;
+      cursor: pointer; white-space: nowrap; flex-shrink: 0; margin-left: 8px;
+    }
+    .btn-open:hover { background: #dbeafe; }
+    .btn-copy {
+      background: #ecfdf5; color: #065f46; border: 1px solid #d1fae5;
+      padding: 3px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;
+      cursor: pointer; white-space: nowrap; flex-shrink: 0; margin-left: 8px;
+    }
+    .btn-copy:hover { background: #d1fae5; }
+    .snippet { line-height: 1.7; color: #334155; font-size: 0.97rem; }
+
+    /* ── 빈 결과 ── */
+    .empty { text-align: center; padding: 50px 20px; color: var(--sub); }
+    .empty svg { width: 48px; height: 48px; opacity: 0.25; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="title">
+      <h1>What's in my PC</h1>
+      <p>내 문서와 파일을 가장 빠르게 찾는 방법</p>
+    </div>
+  </div>
+
+  <!-- 처음 실행 온보딩 -->
+  <div id="onboarding">
+    <h3>시작하기 전에 검색할 폴더를 추가해주세요</h3>
+    <ol>
+      <li><b>+ 폴더 추가</b> 버튼으로 검색할 폴더를 선택하세요 (여러 개 가능)</li>
+      <li><b>동기화</b> 버튼을 눌러 문서를 분석합니다 (최초 1회, 이후 변경분만 자동 처리)</li>
+      <li>분석 완료 후 검색창에 찾고 싶은 내용을 입력하세요</li>
+    </ol>
+  </div>
+
+  <!-- 폴더 설정 패널 -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>검색 대상 폴더</span>
+      <button class="btn-add" id="addFolderBtn">+ 폴더 추가</button>
+    </div>
+    <ul id="folderList"></ul>
+    <div class="sync-row">
+      <button class="btn-sync" id="syncBtn">신규/변경 문서만 동기화</button>
+      <button class="btn-force" id="forceSyncBtn" title="기존 분석 데이터를 초기화하고 처음부터 다시 분석합니다">전체 재파싱</button>
+    </div>
+  </div>
+
+  <!-- 검색창 -->
+  <div class="search-wrap">
+    <button class="btn-search" id="searchSubmitBtn">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+    </button>
+    <input type="text" id="searchBox" placeholder="파일명, 문서 내용 무엇이든 검색하세요..."/>
+  </div>
+
+  <p id="statusTxt"></p>
+  <div id="results"></div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

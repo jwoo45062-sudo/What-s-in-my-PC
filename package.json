@@ -1,0 +1,44 @@
+{
+  "name": "whats-in-my-pc",
+  "version": "1.0.0",
+  "description": "내 PC의 문서를 빠르게 검색하는 프로그램",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --dir",
+    "rebuild": "electron-rebuild -f -w sqlite3"
+  },
+  "build": {
+    "appId": "com.whatsinmypc.app",
+    "productName": "What's in my PC",
+    "win": {
+      "target": "dir",
+      "signAndEditExecutable": false
+    },
+    "npmRebuild": true,
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/sqlite3/**",
+      "node_modules/kordoc/**"
+    ],
+    "files": [
+      "**/*",
+      "!.git/**",
+      "!dist/**",
+      "!빌드.bat",
+      "!실행.bat",
+      "!**/*.bat"
+    ]
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "kordoc": "^2.1.0",
+    "sqlite3": "^6.0.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1"
+  }
+}
